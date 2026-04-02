@@ -1,1 +1,79 @@
 name: ViralVibe Stock Screener
+
+on:
+  schedule:
+    - cron: '30 3 * * 1-5'
+    - cron: '45 3 * * 1-5'
+    - cron: '0  4 * * 1-5'
+    - cron: '30 6 * * 1-5'
+    - cron: '0  9 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      session:
+        description: 'Session to run'
+        required: true
+        default: 'PRE_OPEN'
+        type: choice
+        options:
+          - PRE_OPEN
+          - MARKET_OPEN
+          - BEST_TIME
+          - MIDDAY
+          - POWER_HOUR
+
+jobs:
+  run-screener:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Detect session label
+        id: session
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "label=${{ github.event.inputs.session }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          HOUR=$(date -u +%H)
+          MIN=$(date -u +%M)
+          TIME="${HOUR}${MIN}"
+          if   [ "$TIME" = "0330" ]; then echo "label=PRE_OPEN"    >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0345" ]; then echo "label=MARKET_OPEN" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0400" ]; then echo "label=BEST_TIME"   >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0630" ]; then echo "label=MIDDAY"      >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0900" ]; then echo "label=POWER_HOUR"  >> $GITHUB_OUTPUT
+          else                            echo "label=PRE_OPEN"    >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run screener
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          SESSION_LABEL:      ${{ steps.session.outputs.label }}
+        run: python main.py
+
+      - name: Commit session data
+        if: steps.session.outputs.label != 'POWER_HOUR'
+        run: |
+          git config user.name  "ViralVibe Bot"
+          git config user.email "bot@viralvibe.com"
+          if [ -n "$(git status --porcelain data/)" ]; then
+            git add data/
+            git commit -m "Session: ${{ steps.session.outputs.label }}"
+            git push
+          fi

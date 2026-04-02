@@ -72,6 +72,7 @@ jobs:
         run: |
           git config user.name  "ViralVibe Bot"
           git config user.email "bot@viralvibe.com"
+          git pull --rebase origin main
           if [ -n "$(git status --porcelain data/)" ]; then
             git add data/
             git commit -m "Session: ${{ steps.session.outputs.label }}"

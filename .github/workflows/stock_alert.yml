@@ -72,7 +72,9 @@ jobs:
         run: |
           git config user.name  "ViralVibe Bot"
           git config user.email "bot@viralvibe.com"
+          git stash
           git pull --rebase origin main
+          git stash pop
           if [ -n "$(git status --porcelain data/)" ]; then
             git add data/
             git commit -m "Session: ${{ steps.session.outputs.label }}"

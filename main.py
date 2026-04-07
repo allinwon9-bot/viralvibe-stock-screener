@@ -5,9 +5,8 @@ import requests
 import os
 import json
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
@@ -257,11 +256,11 @@ def screen(sentiment):
 # SAVE SESSION DATA TO FILE
 # ─────────────────────────────────────────
 def save_session(label, bullish, bearish, sentiment_score, mood):
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
     data  = {
         "session":   label,
         "date":      today,
-        "time":      datetime.now().strftime("%H:%M"),
+        "time":      datetime.now(IST).strftime("%H:%M"),
         "sentiment": sentiment_score,
         "mood":      mood,
         "bullish":   bullish,
@@ -277,7 +276,7 @@ def save_session(label, bullish, bearish, sentiment_score, mood):
 # ─────────────────────────────────────────
 def load_all_sessions():
     sessions = {}
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
     for label in SESSION_ORDER[:-1]:  # exclude POWER_HOUR
         path = DATA_DIR / f"session_{label}.json"
         if path.exists():
@@ -380,7 +379,7 @@ def build_scorecard(sessions):
 # ─────────────────────────────────────────
 def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
     title, advice = SESSION_INFO[label]
-    now = datetime.now().strftime("%d %b %Y | %I:%M %p")
+    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p")
 
     lvl  = abs(sentiment_score) // 20
     bar  = ("🟢" if sentiment_score >= 0 else "🔴") * min(lvl, 5)
@@ -440,7 +439,7 @@ def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
 # ─────────────────────────────────────────
 def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
                      current_bull, current_bear, sentiment_score, mood, headlines):
-    now = datetime.now().strftime("%d %b %Y | %I:%M %p")
+    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p")
 
     lvl = abs(sentiment_score) // 20
     bar = ("🟢" if sentiment_score >= 0 else "🔴") * min(lvl, 5)
@@ -537,7 +536,7 @@ def send_telegram(message):
 # CLEAR OLD DATA (cleanup previous day)
 # ─────────────────────────────────────────
 def clear_old_data():
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = ).strftime("%Y-%m-%d")
     for path in DATA_DIR.glob("session_*.json"):
         try:
             with open(path) as f:
@@ -553,7 +552,7 @@ def clear_old_data():
 # ─────────────────────────────────────────
 def run():
     print(f"\n{'='*45}")
-    print(f"SESSION: {SESSION_LABEL}  |  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"SESSION: {SESSION_LABEL}  |  {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*45)
 
     # cleanup old day files

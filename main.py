@@ -7,16 +7,21 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID",   "")
 SESSION_LABEL      = os.getenv("SESSION_LABEL", "PRE_OPEN")
-DATA_DIR           = Path("data")
+
+# IST timezone
+IST = timezone(timedelta(hours=5, minutes=30))
+
+DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
-SESSION_ORDER = ["PRE_OPEN", "MARKET_OPEN", "BEST_TIME", "MIDDAY", "POWER_HOUR"]
+SESSIONS = ["PRE_OPEN", "MARKET_OPEN", "BEST_TIME", "MIDDAY", "POWER_HOUR"]
 
 SESSION_INFO = {
     "PRE_OPEN":    ("🕘 9:00 AM — PRE-OPEN",    "Market not open yet. Early signals only.\n⚡ Wait for 9:30 AM before entering any trade."),
@@ -65,21 +70,30 @@ ALL_STOCKS = list(set(NIFTY_50 + BANK_NIFTY + MIDCAP_150 + FNO_STOCKS))
 ALL_STOCKS = [s for s in ALL_STOCKS if ".NS" in s]
 
 # ─────────────────────────────────────────
-# SENTIMENT
+# IMPROVED SENTIMENT KEYWORDS
 # ─────────────────────────────────────────
 BULLISH_WORDS = [
     "rally","surge","gain","rise","jump","soar","bullish","recovery",
     "rebound","positive","growth","profit","strong","buy","upgrade",
     "beat","record","high","boom","optimism","rate cut","fii buying",
-    "dii buying","green","breakout","momentum","stimulus"
+    "dii buying","green","breakout","momentum","stimulus","jumps",
+    "climb","gains","sensex up","nifty up","market up","advances",
+    "bounces","recovers","higher","upside","buying","up","rises",
+    "rallies","surges","lifts","supported","strength"
 ]
 BEARISH_WORDS = [
     "fall","drop","decline","crash","sell","bearish","weak","loss",
     "negative","risk","fear","war","tension","inflation","rate hike",
     "fii selling","outflow","red","breakdown","correction","plunge",
-    "concern","pressure","slowdown","deficit","recession"
+    "concern","pressure","slowdown","deficit","recession","tumbles",
+    "sinks","slips","falls","down","drag","selling","volatile",
+    "uncertainty","caution","warned","oil prices surge","geopolitical",
+    "selloff","retreat","lower","loses","dips","drops","declines"
 ]
 
+# ─────────────────────────────────────────
+# SENTIMENT FETCHER
+# ─────────────────────────────────────────
 def fetch_sentiment():
     feeds = [
         "https://news.google.com/rss/search?q=NSE+Nifty+stock+market+India&hl=en-IN&gl=IN&ceid=IN:en",
@@ -205,13 +219,14 @@ def analyze(symbol, sentiment):
 
         atr = float((df["High"] - df["Low"]).squeeze().rolling(14).mean().iloc[-1])
 
-        if bp >= 60 and bp > sp:
+        # LOWERED THRESHOLD TO 55%
+        if bp >= 55 and bp > sp:
             direction = "BULLISH"
             prob      = bp
             entry     = round(price, 2)
             target    = round(price + atr * 2, 2)
             sl        = round(price - atr, 2)
-        elif sp >= 60 and sp > bp:
+        elif sp >= 55 and sp > bp:
             direction = "BEARISH"
             prob      = sp
             entry     = round(price, 2)
@@ -236,7 +251,7 @@ def analyze(symbol, sentiment):
         return None
 
 # ─────────────────────────────────────────
-# SCREEN ALL
+# SCREEN ALL STOCKS
 # ─────────────────────────────────────────
 def screen(sentiment):
     print(f"Screening {len(ALL_STOCKS)} stocks...")
@@ -253,18 +268,18 @@ def screen(sentiment):
     return bullish, bearish
 
 # ─────────────────────────────────────────
-# SAVE SESSION DATA TO FILE
+# SAVE SESSION DATA
 # ─────────────────────────────────────────
 def save_session(label, bullish, bearish, sentiment_score, mood):
     today = datetime.now(IST).strftime("%Y-%m-%d")
     data  = {
-        "session":   label,
-        "date":      today,
-        "time":      datetime.now(IST).strftime("%H:%M"),
-        "sentiment": sentiment_score,
-        "mood":      mood,
-        "bullish":   bullish,
-        "bearish":   bearish,
+        "session":        label,
+        "date":           today,
+        "time":           datetime.now(IST).strftime("%H:%M"),
+        "sentimentScore": sentiment_score,
+        "mood":           mood,
+        "bullish":        bullish,
+        "bearish":        bearish,
     }
     path = DATA_DIR / f"session_{label}.json"
     with open(path, "w") as f:
@@ -277,7 +292,7 @@ def save_session(label, bullish, bearish, sentiment_score, mood):
 def load_all_sessions():
     sessions = {}
     today = datetime.now(IST).strftime("%Y-%m-%d")
-    for label in SESSION_ORDER[:-1]:  # exclude POWER_HOUR
+    for label in SESSIONS[:-1]:
         path = DATA_DIR / f"session_{label}.json"
         if path.exists():
             with open(path) as f:
@@ -287,39 +302,25 @@ def load_all_sessions():
     return sessions
 
 # ─────────────────────────────────────────
-# BUILD SCORECARD FOR POWER HOUR
+# BUILD SCORECARD
 # ─────────────────────────────────────────
 def build_scorecard(sessions):
-    """
-    For each stock that appeared in any session,
-    track how many sessions it appeared in and direction.
-    Returns confirmed_bullish, confirmed_bearish, partial, conflicting
-    """
-    # stock -> {session_label: direction, prob}
     tracker = {}
-
     for label, data in sessions.items():
         for s in data.get("bullish", []):
             sym = s["symbol"]
             if sym not in tracker:
-                tracker[sym] = {"sessions": {}, "entries": [], "targets": [], "sls": []}
+                tracker[sym] = {"sessions": {}, "probs": [], "entry": s["entry"], "target": s["target"], "sl": s["sl"]}
             tracker[sym]["sessions"][label] = "BULLISH"
-            tracker[sym]["entries"].append(s["entry"])
-            tracker[sym]["targets"].append(s["target"])
-            tracker[sym]["sls"].append(s["sl"])
-            tracker[sym]["last_prob"] = s["prob"]
-
+            tracker[sym]["probs"].append(s["prob"])
         for s in data.get("bearish", []):
             sym = s["symbol"]
             if sym not in tracker:
-                tracker[sym] = {"sessions": {}, "entries": [], "targets": [], "sls": []}
+                tracker[sym] = {"sessions": {}, "probs": [], "entry": s["entry"], "target": s["target"], "sl": s["sl"]}
             tracker[sym]["sessions"][label] = "BEARISH"
-            tracker[sym]["entries"].append(s["entry"])
-            tracker[sym]["targets"].append(s["target"])
-            tracker[sym]["sls"].append(s["sl"])
-            tracker[sym]["last_prob"] = s["prob"]
+            tracker[sym]["probs"].append(s["prob"])
 
-    total_sessions = len(sessions)
+    total = len(sessions)
     confirmed_bull = []
     confirmed_bear = []
     partial        = []
@@ -329,57 +330,45 @@ def build_scorecard(sessions):
         sess       = info["sessions"]
         directions = list(sess.values())
         count      = len(directions)
-        bull_count = directions.count("BULLISH")
-        bear_count = directions.count("BEARISH")
-
-        # build session dots
-        dots = ""
-        for label in SESSION_ORDER[:-1]:
+        bulls      = directions.count("BULLISH")
+        bears      = directions.count("BEARISH")
+        avg_prob   = round(sum(info["probs"]) / len(info["probs"]))
+        dots       = ""
+        for label in SESSIONS[:-1]:
             if label in sess:
                 dots += "🟢" if sess[label] == "BULLISH" else "🔴"
             else:
                 dots += "⚪"
 
-        avg_entry  = round(sum(info["entries"]) / len(info["entries"]), 2)
-        avg_target = round(sum(info["targets"]) / len(info["targets"]), 2)
-        avg_sl     = round(sum(info["sls"])     / len(info["sls"]),     2)
-        prob       = info.get("last_prob", 0)
-
         item = {
-            "symbol":  sym,
-            "dots":    dots,
-            "count":   count,
-            "total":   total_sessions,
-            "prob":    prob,
-            "entry":   avg_entry,
-            "target":  avg_target,
-            "sl":      avg_sl,
+            "symbol": sym, "count": count, "total": total,
+            "prob": avg_prob, "dots": dots,
+            "entry": info["entry"], "target": info["target"], "sl": info["sl"]
         }
 
-        if bull_count > 0 and bear_count > 0:
-            conflicting.append(item)           # mixed signals
-        elif count == total_sessions:
-            if bull_count == total_sessions:
-                confirmed_bull.append(item)    # 4/4 bullish
+        if bulls > 0 and bears > 0:
+            conflicting.append(item)
+        elif count == total:
+            if bulls == total:
+                confirmed_bull.append({**item, "direction": "BULLISH"})
             else:
-                confirmed_bear.append(item)    # 4/4 bearish
+                confirmed_bear.append({**item, "direction": "BEARISH"})
         elif count >= 2:
-            item["direction"] = "BULLISH" if bull_count > bear_count else "BEARISH"
-            partial.append(item)               # 2/4 or 3/4
+            partial.append({**item, "direction": "BULLISH" if bulls >= bears else "BEARISH"})
 
-    # sort by count desc then prob desc
-    confirmed_bull.sort(key=lambda x: (x["count"], x["prob"]), reverse=True)
-    confirmed_bear.sort(key=lambda x: (x["count"], x["prob"]), reverse=True)
-    partial.sort(key=lambda x: (x["count"], x["prob"]), reverse=True)
+    confirmed_bull.sort(key=lambda x: x["prob"], reverse=True)
+    confirmed_bear.sort(key=lambda x: x["prob"], reverse=True)
+    partial.sort(key=lambda x: x["count"], reverse=True)
 
-    return confirmed_bull, confirmed_bear, partial[:4], conflicting[:4]
+    return confirmed_bull, confirmed_bear, partial[:5], conflicting[:4]
 
 # ─────────────────────────────────────────
-# FORMAT REGULAR SESSION MESSAGE
+# FORMAT REGULAR MESSAGE
 # ─────────────────────────────────────────
 def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
     title, advice = SESSION_INFO[label]
-    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p")
+    # FIXED: Use IST time
+    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p IST")
 
     lvl  = abs(sentiment_score) // 20
     bar  = ("🟢" if sentiment_score >= 0 else "🔴") * min(lvl, 5)
@@ -405,7 +394,7 @@ def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
     ]
 
     def fmt_calls(calls, direction):
-        icon = "🟢" if direction == "BULLISH" else "🔴"
+        icon   = "🟢" if direction == "BULLISH" else "🔴"
         action = "BUY" if direction == "BULLISH" else "SELL"
         if not calls:
             return [f"\n{icon} No strong {direction.lower()} calls right now"]
@@ -414,9 +403,9 @@ def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
             tags = []
             if s.get("vol_spike"): tags.append("🔥Vol")
             if s.get("cross"):     tags.append("⚡MACD")
-            rr_val = abs(s["target"] - s["entry"])
+            rr_val  = abs(s["target"] - s["entry"])
             rr_risk = abs(s["sl"] - s["entry"])
-            rr = f"{round(rr_val/rr_risk,1)}:1" if rr_risk > 0 else "-"
+            rr = f"{round(rr_val / rr_risk, 1)}:1" if rr_risk > 0 else "-"
             out.append(
                 f"\n{i}. *{s['symbol']}* → {action} {' '.join(tags)}\n"
                 f"   📊 `{s['prob']}% {direction.lower()}`  |  RSI: {s['rsi']}  |  R:R {rr}\n"
@@ -435,11 +424,12 @@ def format_regular(label, bullish, bearish, sentiment_score, mood, headlines):
     return "\n".join(lines)
 
 # ─────────────────────────────────────────
-# FORMAT POWER HOUR SCORECARD
+# FORMAT SCORECARD
 # ─────────────────────────────────────────
 def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
                      current_bull, current_bear, sentiment_score, mood, headlines):
-    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p")
+    # FIXED: Use IST time
+    now = datetime.now(IST).strftime("%d %b %Y | %I:%M %p IST")
 
     lvl = abs(sentiment_score) // 20
     bar = ("🟢" if sentiment_score >= 0 else "🔴") * min(lvl, 5)
@@ -450,11 +440,10 @@ def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
         f"📅 {now}",
         "━━━━━━━━━━━━━━━━━━━━━━━━━",
         f"📰 *SENTIMENT: {mood}*  {bar}  {sentiment_score:+d}/100",
-        "\n_Sessions: PRE-OPEN | OPEN | 9:30 | MIDDAY_",
+        "\n_Sessions tracked: PRE-OPEN | OPEN | 9:30 | MIDDAY_",
         "━━━━━━━━━━━━━━━━━━━━━━━━━",
     ]
 
-    # confirmed bullish
     if confirmed_bull:
         lines.append("\n🏆 *CONFIRMED BUY — All sessions agreed*")
         for s in confirmed_bull:
@@ -464,9 +453,8 @@ def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
                 f"   Entry ₹{s['entry']}  🎯 ₹{s['target']}  🛑 ₹{s['sl']}"
             )
     else:
-        lines.append("\n🏆 No stocks confirmed bullish across all sessions today")
+        lines.append("\n🏆 No confirmed buy calls today")
 
-    # confirmed bearish
     if confirmed_bear:
         lines.append("\n🏆 *CONFIRMED SELL — All sessions agreed*")
         for s in confirmed_bear:
@@ -476,22 +464,19 @@ def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
                 f"   Entry ₹{s['entry']}  🎯 ₹{s['target']}  🛑 ₹{s['sl']}"
             )
     else:
-        lines.append("\n🏆 No stocks confirmed bearish across all sessions today")
+        lines.append("\n🏆 No confirmed sell calls today")
 
-    # partial
     if partial:
         lines.append("\n⚠️ *PARTIAL SIGNALS — Use smaller quantity*")
         for s in partial:
             icon = "🟢" if s.get("direction") == "BULLISH" else "🔴"
             lines.append(f"  {icon} *{s['symbol']}*  {s['dots']}  ({s['count']}/{s['total']})  `{s['prob']}%`")
 
-    # conflicting
     if conflicting:
         lines.append("\n❌ *SKIP THESE — Conflicting signals*")
         for s in conflicting:
             lines.append(f"  ⚠️ *{s['symbol']}*  {s['dots']}  Mixed direction")
 
-    # current session calls
     lines += [
         "\n━━━━━━━━━━━━━━━━━━━━━━━━━",
         "📊 *CURRENT 2:30 PM SCAN*",
@@ -504,10 +489,12 @@ def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
         lines.append("🔴 Fresh Bearish:")
         for s in current_bear:
             lines.append(f"  • *{s['symbol']}* `{s['prob']}%`  Entry ₹{s['entry']}  🎯 ₹{s['target']}  🛑 ₹{s['sl']}")
+    if not current_bull and not current_bear:
+        lines.append("No fresh calls at 2:30 PM")
 
     lines += [
         "\n━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "🚨 *REMINDER: Square off ALL intraday positions before 3:20 PM!*",
+        "🚨 *Close ALL intraday positions before 3:20 PM!*",
         "⚠️ _Education only. Always use stop loss._",
         "🤖 _ViralVibe Stock Bot_"
     ]
@@ -518,7 +505,7 @@ def format_scorecard(confirmed_bull, confirmed_bear, partial, conflicting,
 # ─────────────────────────────────────────
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("⚠️  No Telegram credentials. Printing message:\n")
+        print("⚠️ No Telegram credentials. Printing message:\n")
         print(message)
         return
     url  = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -533,69 +520,54 @@ def send_telegram(message):
         print(f"❌ Failed: {e}")
 
 # ─────────────────────────────────────────
-# CLEAR OLD DATA (cleanup previous day)
+# CLEAR OLD DATA
 # ─────────────────────────────────────────
 def clear_old_data():
-    today = ).strftime("%Y-%m-%d")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
     for path in DATA_DIR.glob("session_*.json"):
         try:
             with open(path) as f:
                 data = json.load(f)
             if data.get("date") != today:
                 path.unlink()
-                print(f"🗑️  Cleared old file: {path.name}")
+                print(f"🗑️ Cleared: {path.name}")
         except Exception:
             path.unlink()
 
 # ─────────────────────────────────────────
-# MAIN PIPELINE
+# MAIN
 # ─────────────────────────────────────────
 def run():
     print(f"\n{'='*45}")
-    print(f"SESSION: {SESSION_LABEL}  |  {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"SESSION: {SESSION_LABEL}  |  {datetime.now(IST).strftime('%Y-%m-%d %H:%M IST')}")
     print("="*45)
 
-    # cleanup old day files
     clear_old_data()
 
-    # Step 1: News sentiment
     print("📰 Fetching sentiment...")
     sentiment_score, headlines, mood = fetch_sentiment()
     print(f"   → {mood} ({sentiment_score:+d})")
 
-    # Step 2: Screen stocks
     print("📊 Screening stocks...")
     bullish, bearish = screen(sentiment_score)
     print(f"   → {len(bullish)} bullish, {len(bearish)} bearish")
 
     if SESSION_LABEL == "POWER_HOUR":
-        # Step 3a: Load all previous sessions
         print("📂 Loading previous sessions...")
         sessions = load_all_sessions()
-        print(f"   → Found {len(sessions)} previous sessions: {list(sessions.keys())}")
-
-        # Step 3b: Build scorecard
+        print(f"   → {len(sessions)} sessions found")
         confirmed_bull, confirmed_bear, partial, conflicting = build_scorecard(sessions)
-
-        # Step 3c: Format and send scorecard
         msg = format_scorecard(
             confirmed_bull, confirmed_bear, partial, conflicting,
             bullish, bearish, sentiment_score, mood, headlines
         )
     else:
-        # Step 3a: Save this session's data
         save_session(SESSION_LABEL, bullish, bearish, sentiment_score, mood)
-
-        # Step 3b: Format regular message
         msg = format_regular(SESSION_LABEL, bullish, bearish,
                              sentiment_score, mood, headlines)
 
-    # Step 4: Send to Telegram
     send_telegram(msg)
     print("Done!")
 
-# ─────────────────────────────────────────
-# ENTRY POINT
-# ─────────────────────────────────────────
 if __name__ == "__main__":
     run()

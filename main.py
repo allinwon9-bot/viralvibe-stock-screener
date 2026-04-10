@@ -326,7 +326,7 @@ def get_claude_analysis(session, headlines, nse_snapshot, bullish, bearish):
     gainers     = ", ".join([f"{g['symbol']}(+{g['change']}%)" for g in movers.get("gainers",[])[:3]])
     losers      = ", ".join([f"{l['symbol']}({l['change']}%)" for l in movers.get("losers",[])[:3]])
     upcoming    = nse_snapshot.get("upcoming", [])
-    upcoming_str= ", ".join([f"{h.get('description','N/A')}({h.get('display','N/A')})" for h in upcoming[:2]]) or "None"
+    upcoming_str= ", ".join([f"{h['description']}({h['display']})" for h in upcoming[:2]]) or "None"
 
     bull_str = "\n".join([f"  {s['symbol']}: RSI {s['rsi']} Prob {s['prob']}% Entry ₹{s['entry']} T ₹{s['target']} SL ₹{s['sl']}" for s in bullish[:3]]) or "None"
     bear_str = "\n".join([f"  {s['symbol']}: RSI {s['rsi']} Prob {s['prob']}% Entry ₹{s['entry']} T ₹{s['target']} SL ₹{s['sl']}" for s in bearish[:3]]) or "None"
@@ -387,17 +387,12 @@ End with one line: CONFIDENCE: [HIGH/MEDIUM/LOW] | BIAS: [BULLISH/BEARISH/SIDEWA
             json={"model": "claude-haiku-4-5-20251001",
                   "max_tokens": 1100,
                   "messages": [{"role": "user", "content": prompt}]},
-            timeout=60
+            timeout=30
         )
         if res.status_code == 200:
-            data = res.json()
-            text = data.get("content", [{}])[0].get("text", "")
-            if text:
-                print("  ✅ Claude done")
-                return text
-            print("  ⚠️ Claude returned empty response")
-            return None
-        print(f"  ❌ Claude error {res.status_code}: {res.text[:200]}")
+            print("  ✅ Claude done")
+            return res.json()["content"][0]["text"]
+        print(f"  ❌ Claude error: {res.status_code}")
         return None
     except Exception as e:
         print(f"  ❌ Claude failed: {e}")
@@ -478,7 +473,7 @@ def format_message(session, nse_snapshot, ai_analysis, bullish, bearish):
     # Holiday warning
     if upcoming and upcoming[0]["days_away"] <= 2:
         h = upcoming[0]
-        lines.append(f"\n⚠️ *Holiday Alert:* {h.get('description','N/A')} — {h.get('display','N/A')} ({h.get('days_away','?')} day away)")
+        lines.append(f"\n⚠️ *Holiday Alert:* {h['description']} — {h['display']} ({h['days_away']} day away)")
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━")
 
@@ -572,7 +567,7 @@ def format_holiday_message(reason, upcoming):
     if upcoming:
         lines.append("\n📅 *Upcoming Holidays:*")
         for h in upcoming[:3]:
-            lines.append(f"  • {h.get('display','N/A')} — {h.get('description','N/A')} ({h.get('days_away','?')} days away)")
+            lines.append(f"  • {h['display']} — {h['description']} ({h['days_away']} days away)")
     lines += [
         "\n💡 *Use today wisely:*",
         "  📊 Review your portfolio",
@@ -635,17 +630,13 @@ def run():
 
     # ── 1. NSE holiday check ──
     print("\n[1] Checking NSE market status...")
-    try:
-        nse_snapshot = get_nse_snapshot()
-    except Exception as e:
-        print(f"  ⚠️ NSE snapshot failed: {e}. Using empty snapshot.")
-        nse_snapshot = {"is_holiday": False, "holiday_reason": "", "upcoming": [],
-                        "indices": {}, "fii_dii": [], "movers": {}}
+    nse_snapshot = get_nse_snapshot()
 
-    if nse_snapshot.get("is_holiday"):
-        reason   = nse_snapshot.get("holiday_reason", "Holiday")
-        upcoming = nse_snapshot.get("upcoming", [])
+    if nse_snapshot["is_holiday"]:
+        reason   = nse_snapshot["holiday_reason"]
+        upcoming = nse_snapshot["upcoming"]
         print(f"  🏖 Holiday: {reason} — sending notice")
+        # Only send once per day (morning session)
         if SESSION_LABEL == "MORNING_BRIEFING":
             send_telegram(format_holiday_message(reason, upcoming))
         else:
@@ -656,49 +647,39 @@ def run():
 
     # ── 2. Fetch news ──
     print("\n[2] Fetching news headlines...")
-    try:
-        headlines = fetch_headlines(SESSION_LABEL)
-    except Exception as e:
-        print(f"  ⚠️ News fetch failed: {e}")
-        headlines = []
+    headlines = fetch_headlines(SESSION_LABEL)
 
     # ── 3. Screen stocks (only for relevant sessions) ──
     sess_config = SESSIONS.get(SESSION_LABEL, SESSIONS["MORNING_BRIEFING"])
     bullish, bearish = [], []
     if sess_config["do_screen"]:
         print("\n[3] Screening stocks...")
-        try:
-            bullish, bearish = screen_stocks()
-        except Exception as e:
-            print(f"  ⚠️ Stock screening failed: {e}")
+        bullish, bearish = screen_stocks()
     else:
         print("\n[3] Stock screening skipped for this session")
 
     # ── 4. Claude AI analysis ──
     print("\n[4] Getting Claude AI analysis...")
-    try:
-        ai_analysis = get_claude_analysis(
-            SESSION_LABEL, headlines, nse_snapshot, bullish, bearish
-        )
-    except Exception as e:
-        print(f"  ⚠️ Claude analysis failed: {e}")
-        ai_analysis = None
+    ai_analysis = get_claude_analysis(
+        SESSION_LABEL, headlines, nse_snapshot, bullish, bearish
+    )
 
     # ── 5. Format and send ──
     print("\n[5] Sending to Telegram...")
-    try:
-        if SESSION_LABEL == "EOD_SCORECARD":
-            sessions = load_all_sessions()
-            cb, cs, partial, conflict = build_scorecard(sessions)
-            msg = format_eod_scorecard(cb, cs, partial, conflict, ai_analysis, nse_snapshot)
-        else:
-            if SESSION_LABEL in TRACKING_SESSIONS:
-                save_session(SESSION_LABEL, bullish, bearish)
-            msg = format_message(SESSION_LABEL, nse_snapshot, ai_analysis, bullish, bearish)
-        send_telegram(msg)
-    except Exception as e:
-        print(f"  ⚠️ Formatting/sending failed: {e}")
 
+    if SESSION_LABEL == "EOD_SCORECARD":
+        sessions = load_all_sessions()
+        cb, cs, partial, conflict = build_scorecard(sessions)
+        msg = format_eod_scorecard(cb, cs, partial, conflict, ai_analysis, nse_snapshot)
+
+    else:
+        # Save data for scorecard tracking sessions
+        if SESSION_LABEL in TRACKING_SESSIONS:
+            save_session(SESSION_LABEL, bullish, bearish)
+
+        msg = format_message(SESSION_LABEL, nse_snapshot, ai_analysis, bullish, bearish)
+
+    send_telegram(msg)
     print("\n✅ All done!")
 
 if __name__ == "__main__":

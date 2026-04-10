@@ -301,15 +301,24 @@ def analyze_stock(symbol):
         return None
 
 def screen_stocks():
-    print(f"  Screening {len(ALL_STOCKS)} stocks...")
-    results = [r for sym in ALL_STOCKS for r in [analyze_stock(sym)] if r]
-    bullish = sorted([r for r in results if r["direction"]=="BULLISH"],
-                     key=lambda x: x["prob"], reverse=True)[:5]
-    bearish = sorted([r for r in results if r["direction"]=="BEARISH"],
-                     key=lambda x: x["prob"], reverse=True)[:5]
-    print(f"  Found: {len(bullish)} bullish, {len(bearish)} bearish")
-    return bullish, bearish
-
+    print(f"  Downloading all stocks at once...")
+    try:
+        # Download all at once — much faster, less rate limiting
+        symbols_str = " ".join(ALL_STOCKS)
+        all_data = yf.download(
+            symbols_str,
+            period="6mo",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            group_by="ticker",
+            timeout=60
+        )
+        print(f"  ✅ Batch download complete")
+    except Exception as e:
+        print(f"  Batch download failed: {e}, falling back to individual")
+        all_data = None
+    # ... rest of analysis
 # ─────────────────────────────────────────
 # CLAUDE AI ANALYSIS
 # ─────────────────────────────────────────

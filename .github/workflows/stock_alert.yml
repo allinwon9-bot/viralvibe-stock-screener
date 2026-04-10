@@ -3,23 +3,23 @@ name: ViralVibe Stock Screener
 on:
   schedule:
     # ── All times UTC (IST = UTC + 5:30) ──
-    # Weekdays only (Mon-Fri)
+    # Weekdays only Mon-Fri
 
     - cron: '30 2 * * 1-5'   # 8:00 AM IST  — Morning Briefing
     - cron: '30 3 * * 1-5'   # 9:00 AM IST  — Pre Open
-    - cron: '45 3 * * 1-5'   # 9:15 AM IST  — Market Opens
-    - cron: '0  4 * * 1-5'   # 9:30 AM IST  — Best Entry
+    - cron: '45 3 * * 1-5'   # 9:15 AM IST  — Market Open
+    - cron: '0  4 * * 1-5'   # 9:30 AM IST  — Best Entry + Institutional
     - cron: '30 6 * * 1-5'   # 12:00 PM IST — Midday Review
-    - cron: '30 8 * * 1-5'   # 2:00 PM IST  — Power Hour Prep
+    - cron: '30 8 * * 1-5'   # 2:00 PM IST  — Power Hour Prep + Institutional
     - cron: '30 9 * * 1-5'   # 3:00 PM IST  — Closing Analysis
     - cron: '0  10 * * 1-5'  # 3:30 PM IST  — EOD Scorecard
 
   workflow_dispatch:
     inputs:
       session:
-        description: 'Session to run manually'
+        description: 'Session to run'
         required: true
-        default: 'MORNING_BRIEFING'
+        default: 'BEST_ENTRY'
         type: choice
         options:
           - MORNING_BRIEFING
@@ -30,6 +30,15 @@ on:
           - POWER_HOUR_PREP
           - CLOSING_ANALYSIS
           - EOD_SCORECARD
+      analysis_type:
+        description: 'Analysis type'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - regular
+          - institutional
 
 jobs:
   run-screener:
@@ -58,6 +67,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "label=${{ github.event.inputs.session }}" >> $GITHUB_OUTPUT
+            echo "atype=${{ github.event.inputs.analysis_type }}" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -65,24 +75,34 @@ jobs:
           MIN=$(date -u +%M)
           TIME="${HOUR}${MIN}"
 
-          if   [ "$TIME" = "0230" ]; then echo "label=MORNING_BRIEFING"  >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0330" ]; then echo "label=PRE_OPEN"          >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0345" ]; then echo "label=MARKET_OPEN"       >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0400" ]; then echo "label=BEST_ENTRY"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0630" ]; then echo "label=MIDDAY_REVIEW"     >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0830" ]; then echo "label=POWER_HOUR_PREP"   >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0930" ]; then echo "label=CLOSING_ANALYSIS"  >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "1000" ]; then echo "label=EOD_SCORECARD"     >> $GITHUB_OUTPUT
-          else                            echo "label=MORNING_BRIEFING"  >> $GITHUB_OUTPUT
+          if   [ "$TIME" = "0230" ]; then echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0330" ]; then echo "label=PRE_OPEN"         >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0345" ]; then echo "label=MARKET_OPEN"      >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0400" ]; then echo "label=BEST_ENTRY"       >> $GITHUB_OUTPUT; echo "atype=both"           >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0630" ]; then echo "label=MIDDAY_REVIEW"    >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0830" ]; then echo "label=POWER_HOUR_PREP"  >> $GITHUB_OUTPUT; echo "atype=both"           >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0930" ]; then echo "label=CLOSING_ANALYSIS" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "1000" ]; then echo "label=EOD_SCORECARD"    >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
+          else                            echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
           fi
 
-      - name: Run screener
+      - name: Run regular analysis
+        if: steps.session.outputs.atype == 'regular' || steps.session.outputs.atype == 'both'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
           SESSION_LABEL:      ${{ steps.session.outputs.label }}
         run: python main.py
+
+      - name: Run institutional analysis
+        if: steps.session.outputs.atype == 'institutional' || steps.session.outputs.atype == 'both'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          SESSION_LABEL:      ${{ steps.session.outputs.label }}
+        run: python institutional_main.py
 
       - name: Commit session data
         if: |
@@ -96,6 +116,6 @@ jobs:
           git stash pop
           if [ -n "$(git status --porcelain data/)" ]; then
             git add data/
-            git commit -m "📊 Session: ${{ steps.session.outputs.label }} $(date -u +'%H:%M UTC')"
+            git commit -m "📊 ${{ steps.session.outputs.label }} $(date -u +'%H:%M UTC')"
             git push
           fi

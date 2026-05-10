@@ -16,7 +16,7 @@ from pathlib import Path
 # ─────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID",   "")
-ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY",  "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 _env_session  = os.getenv("SESSION_LABEL", "")
 SESSION_LABEL = _env_session if _env_session else "AUTO"

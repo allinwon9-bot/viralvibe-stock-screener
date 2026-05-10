@@ -708,18 +708,23 @@ Keep total under 600 words. Be specific with numbers."""
     try:
         print("  Calling Claude AI (3-prompt framework)...")
         res = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key":ANTHROPIC_API_KEY,
-                     "anthropic-version":"2023-06-01",
-                     "content-type":"application/json"},
-            json={"model":"claude-haiku-4-5-20251001","max_tokens":1400,
-                  "messages":[{"role":"user","content":prompt}]},
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type":  "application/json",
+                "HTTP-Referer":  "https://github.com/allinwon9-bot/viralvibe-stock-screener",
+                "X-Title":       "ViralVibe Stock Bot",
+            },
+            json={
+                "model":      "minimax/minimax-m2.5:free",
+                "max_tokens": 1400,
+                "messages":   [{"role":"user","content":prompt}],
+            },
             timeout=40
         )
-        if res.status_code==200:
-            print("  ✅ Claude done")
-            return res.json()["content"][0]["text"]
-        print(f"  ❌ Claude: {res.status_code}")
+        if res.status_code == 200:
+            return res.json()["choices"][0]["message"]["content"]
+        print(f"  ❌ OpenRouter: {res.status_code} — {res.text[:100]}")
         return None
     except Exception as e:
         print(f"  ❌ Claude: {e}")

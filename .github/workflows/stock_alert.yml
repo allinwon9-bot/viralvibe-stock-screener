@@ -113,7 +113,7 @@ jobs:
           git config user.email "bot@viralvibe.com"
           git stash
           git pull --rebase origin main
-          git stash pop
+          git stash pop || true
           if [ -n "$(git status --porcelain data/)" ]; then
             git add data/
             git commit -m "📊 ${{ steps.session.outputs.label }} $(date -u +'%H:%M UTC')"

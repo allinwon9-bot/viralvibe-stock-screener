@@ -33,14 +33,21 @@ from pathlib import Path
 from datetime import datetime
 
 # ─────────────────────────────────────────
-# UNIVERSE — liquid, well-covered names.
-# Keep this modest for backtesting; expand once setups are validated.
+# UNIVERSE — Nifty 50 constituents. Widened from the original 20-stock set
+# after that universe produced 0/4 validated setups, per the standard
+# "widen universe/period and retest" path rather than loosening the bar.
 # ─────────────────────────────────────────
 UNIVERSE = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
     "SBIN.NS", "AXISBANK.NS", "KOTAKBANK.NS", "LT.NS", "BAJFINANCE.NS",
     "MARUTI.NS", "TITAN.NS", "SUNPHARMA.NS", "TATASTEEL.NS", "HINDALCO.NS",
     "ITC.NS", "HCLTECH.NS", "WIPRO.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS",
+    "BHARTIARTL.NS", "NTPC.NS", "POWERGRID.NS", "ONGC.NS", "COALINDIA.NS",
+    "NESTLEIND.NS", "BAJAJFINSV.NS", "M&M.NS", "TATAMOTORS.NS", "ADANIENT.NS",
+    "ADANIPORTS.NS", "JSWSTEEL.NS", "GRASIM.NS", "CIPLA.NS", "DRREDDY.NS",
+    "APOLLOHOSP.NS", "DIVISLAB.NS", "EICHERMOT.NS", "HEROMOTOCO.NS", "BRITANNIA.NS",
+    "TATACONSUM.NS", "SBILIFE.NS", "HDFCLIFE.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS",
+    "SHRIRAMFIN.NS", "TECHM.NS", "TRENT.NS", "BEL.NS", "UPL.NS",
 ]
 
 BACKTEST_YEARS   = 3

@@ -1,0 +1,118 @@
+{
+  "run_at": "2026-08-08 00:52",
+  "universe_size": 50,
+  "years": 3,
+  "forward_windows": [
+    5,
+    10,
+    20
+  ],
+  "min_sample": 20,
+  "min_win_rate": 0.55,
+  "setups": {
+    "RSI_PULLBACK_UPTREND": {
+      "5": {
+        "sample_size": 941,
+        "win_rate": 57.3,
+        "avg_win_pct": 2.75,
+        "avg_loss_pct": -2.53,
+        "expectancy_pct": 0.5,
+        "verdict": "VALIDATED"
+      },
+      "10": {
+        "sample_size": 938,
+        "win_rate": 55.5,
+        "avg_win_pct": 4.1,
+        "avg_loss_pct": -3.72,
+        "expectancy_pct": 0.62,
+        "verdict": "VALIDATED"
+      },
+      "20": {
+        "sample_size": 927,
+        "win_rate": 57.2,
+        "avg_win_pct": 5.59,
+        "avg_loss_pct": -4.78,
+        "expectancy_pct": 1.15,
+        "verdict": "VALIDATED"
+      }
+    },
+    "MACD_CROSS_VOLUME": {
+      "5": {
+        "sample_size": 449,
+        "win_rate": 49.9,
+        "avg_win_pct": 3.18,
+        "avg_loss_pct": -2.63,
+        "expectancy_pct": 0.26,
+        "verdict": "NO_EDGE"
+      },
+      "10": {
+        "sample_size": 442,
+        "win_rate": 51.1,
+        "avg_win_pct": 4.37,
+        "avg_loss_pct": -3.7,
+        "expectancy_pct": 0.43,
+        "verdict": "NO_EDGE"
+      },
+      "20": {
+        "sample_size": 436,
+        "win_rate": 53.7,
+        "avg_win_pct": 6.4,
+        "avg_loss_pct": -4.48,
+        "expectancy_pct": 1.36,
+        "verdict": "NO_EDGE"
+      }
+    },
+    "GOLDEN_CROSS": {
+      "5": {
+        "sample_size": 40,
+        "win_rate": 42.5,
+        "avg_win_pct": 2.84,
+        "avg_loss_pct": -2.51,
+        "expectancy_pct": -0.24,
+        "verdict": "NO_EDGE"
+      },
+      "10": {
+        "sample_size": 39,
+        "win_rate": 51.3,
+        "avg_win_pct": 3.6,
+        "avg_loss_pct": -3.24,
+        "expectancy_pct": 0.27,
+        "verdict": "NO_EDGE"
+      },
+      "20": {
+        "sample_size": 39,
+        "win_rate": 41.0,
+        "avg_win_pct": 5.97,
+        "avg_loss_pct": -4.3,
+        "expectancy_pct": -0.09,
+        "verdict": "NO_EDGE"
+      }
+    },
+    "OVERSOLD_BOUNCE": {
+      "5": {
+        "sample_size": 1177,
+        "win_rate": 47.7,
+        "avg_win_pct": 2.73,
+        "avg_loss_pct": -2.73,
+        "expectancy_pct": -0.12,
+        "verdict": "NO_EDGE"
+      },
+      "10": {
+        "sample_size": 1169,
+        "win_rate": 50.4,
+        "avg_win_pct": 3.86,
+        "avg_loss_pct": -3.93,
+        "expectancy_pct": -0.0,
+        "verdict": "NO_EDGE"
+      },
+      "20": {
+        "sample_size": 1152,
+        "win_rate": 50.8,
+        "avg_win_pct": 6.13,
+        "avg_loss_pct": -5.13,
+        "expectancy_pct": 0.59,
+        "verdict": "NO_EDGE"
+      }
+    }
+  }
+}

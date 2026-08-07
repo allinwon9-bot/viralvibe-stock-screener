@@ -1,0 +1,27 @@
+name: Run Backtest (manual)
+
+# Manual-only — this isn't a daily job. Re-run monthly or when you want to
+# add/change a setup definition in backtest_engine.py.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install yfinance pandas numpy
+      - run: python caller/backtest_engine.py
+      - name: Commit results
+        run: |
+          git config user.name  "Backtest Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add caller/backtest_results.json
+          git diff --cached --quiet || git commit -m "Backtest results $(date -u +%Y-%m-%d)"
+          git push

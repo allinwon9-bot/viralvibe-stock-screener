@@ -1,0 +1,42 @@
+{
+  "run_at": "2026-08-07 20:30",
+  "universe_size": 20,
+  "years": 3,
+  "forward_days": 10,
+  "min_sample": 20,
+  "min_win_rate": 0.55,
+  "setups": {
+    "RSI_PULLBACK_UPTREND": {
+      "sample_size": 367,
+      "win_rate": 52.6,
+      "avg_win_pct": 3.31,
+      "avg_loss_pct": -3.89,
+      "expectancy_pct": -0.1,
+      "verdict": "NO_EDGE"
+    },
+    "MACD_CROSS_VOLUME": {
+      "sample_size": 166,
+      "win_rate": 48.2,
+      "avg_win_pct": 3.66,
+      "avg_loss_pct": -3.47,
+      "expectancy_pct": -0.03,
+      "verdict": "NO_EDGE"
+    },
+    "GOLDEN_CROSS": {
+      "sample_size": 17,
+      "win_rate": 58.8,
+      "avg_win_pct": 2.26,
+      "avg_loss_pct": -4.36,
+      "expectancy_pct": -0.47,
+      "verdict": "INSUFFICIENT_SAMPLE"
+    },
+    "OVERSOLD_BOUNCE": {
+      "sample_size": 558,
+      "win_rate": 47.5,
+      "avg_win_pct": 3.36,
+      "avg_loss_pct": -3.62,
+      "expectancy_pct": -0.31,
+      "verdict": "NO_EDGE"
+    }
+  }
+}

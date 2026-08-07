@@ -83,7 +83,7 @@ def fetch_nse_holidays():
 # In case NSE API is unavailable
 # ─────────────────────────────────────────
 def get_fallback_holidays():
-    return [
+    raw = [
         {"date": "2026-01-26", "description": "Republic Day",         "day": "Monday"},
         {"date": "2026-02-26", "description": "Mahashivratri",        "day": "Thursday"},
         {"date": "2026-03-25", "description": "Holi",                 "day": "Wednesday"},
@@ -99,6 +99,13 @@ def get_fallback_holidays():
         {"date": "2026-11-25", "description": "Christmas Eve",        "day": "Friday"},
         {"date": "2026-12-25", "description": "Christmas",            "day": "Friday"},
     ]
+    # fetch_nse_holidays()'s live-data path always includes a "display" key
+    # (the human-readable trading date string). Add it here too so fallback
+    # entries have the same shape — format_holiday_message() reads h['display']
+    # unconditionally and crashes with KeyError on any entry missing it.
+    for h in raw:
+        h["display"] = datetime.strptime(h["date"], "%Y-%m-%d").strftime("%d-%b-%Y")
+    return raw
 
 # ─────────────────────────────────────────
 # CHECK IF TODAY IS HOLIDAY

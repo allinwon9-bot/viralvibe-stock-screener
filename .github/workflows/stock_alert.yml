@@ -71,20 +71,28 @@ jobs:
             exit 0
           fi
 
-          HOUR=$(date -u +%H)
-          MIN=$(date -u +%M)
-          TIME="${HOUR}${MIN}"
-
-          if   [ "$TIME" = "0230" ]; then echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0330" ]; then echo "label=PRE_OPEN"         >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0345" ]; then echo "label=MARKET_OPEN"      >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0400" ]; then echo "label=BEST_ENTRY"       >> $GITHUB_OUTPUT; echo "atype=both"           >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0630" ]; then echo "label=MIDDAY_REVIEW"    >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0830" ]; then echo "label=POWER_HOUR_PREP"  >> $GITHUB_OUTPUT; echo "atype=both"           >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "0930" ]; then echo "label=CLOSING_ANALYSIS" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          elif [ "$TIME" = "1000" ]; then echo "label=EOD_SCORECARD"    >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          else                            echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular"        >> $GITHUB_OUTPUT
-          fi
+          # Match on which cron expression fired (github.event.schedule), not
+          # on wall-clock time at execution. GitHub's schedule event commonly
+          # fires several (sometimes 30-90+) minutes late under load. The old
+          # exact-HHMM-vs-actual-run-time match silently fell through to the
+          # MORNING_BRIEFING/regular default on any drift at all — which,
+          # looking at run history, was true of most scheduled runs. That
+          # default skips both the institutional-analysis step and the data
+          # commit, so most sessions were mislabeled and most institutional
+          # runs never happened. github.event.schedule is the literal cron
+          # string that matched, so it's exact regardless of execution delay.
+          case "${{ github.event.schedule }}" in
+            "30 2 * * 1-5") echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            "30 3 * * 1-5") echo "label=PRE_OPEN"         >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            "45 3 * * 1-5") echo "label=MARKET_OPEN"      >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            "0 4 * * 1-5")  echo "label=BEST_ENTRY"       >> $GITHUB_OUTPUT; echo "atype=both"    >> $GITHUB_OUTPUT ;;
+            "30 6 * * 1-5") echo "label=MIDDAY_REVIEW"    >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            "30 8 * * 1-5") echo "label=POWER_HOUR_PREP"  >> $GITHUB_OUTPUT; echo "atype=both"    >> $GITHUB_OUTPUT ;;
+            "30 9 * * 1-5") echo "label=CLOSING_ANALYSIS" >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            "0 10 * * 1-5") echo "label=EOD_SCORECARD"    >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+            *)              echo "label=MORNING_BRIEFING" >> $GITHUB_OUTPUT; echo "atype=regular" >> $GITHUB_OUTPUT ;;
+          esac
+          echo "Matched cron '${{ github.event.schedule }}' -> $(cat $GITHUB_OUTPUT | tr '\n' ' ')"
 
       - name: Run regular analysis
         if: steps.session.outputs.atype == 'regular' || steps.session.outputs.atype == 'both'

@@ -36,6 +36,10 @@ from datetime import datetime
 # UNIVERSE — Nifty 50 constituents. Widened from the original 20-stock set
 # after that universe produced 0/4 validated setups, per the standard
 # "widen universe/period and retest" path rather than loosening the bar.
+#
+# TATAMOTORS.NS delisted after Tata Motors' Oct 2025 demerger — the CV and
+# PV/JLR businesses now trade as two separate companies. Both are included
+# below (TMPV, TMCV) rather than guessing which one is the "real" successor.
 # ─────────────────────────────────────────
 UNIVERSE = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
@@ -43,7 +47,7 @@ UNIVERSE = [
     "MARUTI.NS", "TITAN.NS", "SUNPHARMA.NS", "TATASTEEL.NS", "HINDALCO.NS",
     "ITC.NS", "HCLTECH.NS", "WIPRO.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS",
     "BHARTIARTL.NS", "NTPC.NS", "POWERGRID.NS", "ONGC.NS", "COALINDIA.NS",
-    "NESTLEIND.NS", "BAJAJFINSV.NS", "M&M.NS", "TATAMOTORS.NS", "ADANIENT.NS",
+    "NESTLEIND.NS", "BAJAJFINSV.NS", "M&M.NS", "TMPV.NS", "TMCV.NS", "ADANIENT.NS",
     "ADANIPORTS.NS", "JSWSTEEL.NS", "GRASIM.NS", "CIPLA.NS", "DRREDDY.NS",
     "APOLLOHOSP.NS", "DIVISLAB.NS", "EICHERMOT.NS", "HEROMOTOCO.NS", "BRITANNIA.NS",
     "TATACONSUM.NS", "SBILIFE.NS", "HDFCLIFE.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS",
